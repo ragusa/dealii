@@ -1,6 +1,6 @@
 ## ---------------------------------------------------------------------
 ##
-## Copyright (C) 2012 - 2015 by the deal.II authors
+## Copyright (C) 2012 - 2017 by the deal.II authors
 ##
 ## This file is part of the deal.II library.
 ##
@@ -8,8 +8,8 @@
 ## it, and/or modify it under the terms of the GNU Lesser General
 ## Public License as published by the Free Software Foundation; either
 ## version 2.1 of the License, or (at your option) any later version.
-## The full text of the license can be found in the file LICENSE at
-## the top level of the deal.II distribution.
+## The full text of the license can be found in the file LICENSE.md at
+## the top level directory of deal.II.
 ##
 ## ---------------------------------------------------------------------
 
@@ -18,13 +18,7 @@
 #
 #   DEAL_II_HAVE_GETHOSTNAME
 #   DEAL_II_HAVE_GETPID
-#   DEAL_II_HAVE_JN
-#   DEAL_II_HAVE_FP_EXCEPTIONS
 #   DEAL_II_HAVE_SYS_RESOURCE_H
-#   DEAL_II_HAVE_SYS_TIME_H
-#   DEAL_II_HAVE_SYS_TIMES_H
-#   DEAL_II_HAVE_SYS_TYPES_H
-#   DEAL_II_HAVE_TIMES
 #   DEAL_II_HAVE_UNISTD_H
 #   DEAL_II_MSVC
 #
@@ -41,73 +35,9 @@
 #
 CHECK_INCLUDE_FILE_CXX("sys/resource.h" DEAL_II_HAVE_SYS_RESOURCE_H)
 
-CHECK_INCLUDE_FILE_CXX("sys/time.h" DEAL_II_HAVE_SYS_TIME_H)
-
-CHECK_INCLUDE_FILE_CXX("sys/times.h" DEAL_II_HAVE_SYS_TIMES_H)
-CHECK_CXX_SYMBOL_EXISTS("times" "sys/times.h" DEAL_II_HAVE_TIMES)
-
-CHECK_INCLUDE_FILE_CXX("sys/types.h" DEAL_II_HAVE_SYS_TYPES_H)
-
 CHECK_INCLUDE_FILE_CXX("unistd.h" DEAL_II_HAVE_UNISTD_H)
 CHECK_CXX_SYMBOL_EXISTS("gethostname" "unistd.h" DEAL_II_HAVE_GETHOSTNAME)
 CHECK_CXX_SYMBOL_EXISTS("getpid" "unistd.h" DEAL_II_HAVE_GETPID)
-
-#
-# Do we have the Bessel function jn?
-#
-FIND_SYSTEM_LIBRARY(m_LIBRARY NAMES m)
-MARK_AS_ADVANCED(m_LIBRARY)
-
-IF(NOT m_LIBRARY MATCHES "-NOTFOUND")
-  LIST(APPEND CMAKE_REQUIRED_LIBRARIES ${m_LIBRARY})
-  CHECK_CXX_SYMBOL_EXISTS("jn" "math.h" DEAL_II_HAVE_JN)
-  RESET_CMAKE_REQUIRED()
-  IF(DEAL_II_HAVE_JN)
-    LIST(APPEND DEAL_II_LIBRARIES ${m_LIBRARY})
-  ENDIF()
-ENDIF()
-
-
-#
-# Check that we can use feenableexcept. Sets DEAL_II_HAVE_FP_EXCEPTIONS
-#
-# The test is a bit more complicated because we also check that no garbage
-# exception is thrown if we convert -std::numeric_limits<double>::max to a
-# string. This sadly happens with some compiler support libraries :-(
-
-INCLUDE (CheckCXXSourceRuns)
-
-CHECK_CXX_SOURCE_RUNS("
-  #include <fenv.h>
-  #include <limits>
-  #include <sstream>
-
-  int main()
-  {
-    feenableexcept(FE_DIVBYZERO|FE_INVALID);
-    std::ostringstream description;
-    const double lower_bound = -std::numeric_limits<double>::max();  
-
-    description << lower_bound;
-
-    return 0;
-  }
-  " 
-  _HAVE_FP_EXCEPTIONS)
-
-
-SET(DEAL_II_HAVE_FP_EXCEPTIONS ON CACHE BOOL "If ON, floating point exception are raised in debug mode when running the testsuite.")
-
-IF (DEAL_II_HAVE_FP_EXCEPTIONS)
-  IF(_HAVE_FP_EXCEPTIONS)
-    MESSAGE(STATUS "Checking for Floating Point Exception macros -- Success")
-    # nothing to set here -- DEAL_II_HAVE_FP_EXCEPTIONS is already ON
-  ELSE()
-    MESSAGE(STATUS "Checking for Floating Point Exception macros -- Failed")
-    SET(DEAL_II_HAVE_FP_EXCEPTIONS OFF CACHE BOOL "" FORCE)
-  ENDIF()
-ENDIF()
-
 
 ########################################################################
 #                                                                      #
@@ -182,6 +112,9 @@ IF(CMAKE_SYSTEM_NAME MATCHES "Windows")
       "BUILD_SHARED_LIBS forced to OFF\n\n"
       )
     SET(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
+    # And disable compilation of examples:
+    SET(DEAL_II_COMPILE_EXAMPLES OFF CACHE BOOL "" FORCE)
   ENDIF()
 
 ENDIF()

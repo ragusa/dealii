@@ -5,7 +5,7 @@
   <meta http-equiv="Content-type" content="text/html;charset=UTF-8">
   <title>The deal.II Testsuite</title>
   <link href="../screen.css" rel="StyleSheet">
-  <meta name="copyright" content="Copyright (C) 1998 - 2015 by the deal.II Authors">
+  <meta name="copyright" content="Copyright (C) 1998 - 2018 by the deal.II Authors">
   <meta name="keywords" content="deal dealii finite elements fem triangulation">
   <meta http-equiv="content-language" content="en">
 </head>
@@ -15,12 +15,13 @@
     <h1>The deal.II Testsuite</h1>
 
     <p>
-      deal.II has a testsuite that has, at the time this article was last
-      updated (April 2015), some 3,600 small programs (growing by roughly
-      one per day) that we run every time we make a change to make sure
-      that no existing functionality is broken. The expected output for
-      every test is stored in an <code>*.output</code>, and when you run a
-      test you are notified if a test produces different output.
+      deal.II has a testsuite with thousands of small programs that we run every time
+      we make a change to make sure
+      that no existing functionality is broken. It is located in the <code>tests/</code>
+      directory of the development repository. The expected output for
+      every test is stored in an <code>*.output</code> next to the <code>.cc</code> file,
+      and when running a test, you are notified if the output differs from the expected
+      output.
     </p>
 
     <p>
@@ -28,9 +29,9 @@
       we add at least one new test to the testsuite, and we also do so if
       we fix a bug, in both cases to make sure that future changes do not
       break this functionality (again). Machines running the testsuite
-      submit the results to
-      <a href="http://cdash.kyomu.43-1.org/index.php?project=deal.II"
-      target="body">a webpage showing the status of our regression tests</a>.
+      submit the results to our cdash 
+      <a href="http://cdash.kyomu.43-1.org/index.php?project=deal.II">CDash instance</a>, 
+      a webpage showing the status of our regression tests.
     </p>
 
     <div class="toc">
@@ -48,11 +49,11 @@
         <li><a href="#layout">Testsuite development</a></li>
         <ol>
           <li><a href="#layoutgeneral">General layout</a></li>
-          <li><a href="#restrictcompiler">Restricting tests to specific compiler and compiler versions</a></li>
           <li><a href="#restrictbuild">Restricting tests to build configurations</a></li>
           <li><a href="#restrictfeature">Restricting tests to feature configurations</a></li>
           <li><a href="#mpi">Running tests with MPI</a></li>
           <li><a href="#binary">Tests with binary output</a></li>
+          <li><a href="#variants">Tests with multiple comparison files</a></li>
           <li><a href="#expect">Changing condition for success</a></li>
           <li><a href="#layoutaddtests">Adding new tests</a></li>
           <li><a href="#layoutaddcategory">Adding new categories</a></li>
@@ -82,7 +83,7 @@ $ git clone https://github.com/dealii/dealii
 
     <p>
       To enable the testsuite for a given build directory, ensure that
-      deal.II is successfully configured and build (installation is not
+      deal.II is successfully configured and built (installation is not
       necessary). After that you can set up the testsuite via the
       "setup_tests" target:
 <pre>
@@ -130,9 +131,9 @@ name.
       the testsuite and run cmake pointing to the <code>tests</code>
       subdirectory, e.g.,
 <pre>
-$ mkdir tests/build
-$ cd tests/build
-$ cmake ..
+$ mkdir tests_for_installed_dealii
+$ cd tests_for_installed_dealii
+$ cmake -DDEAL_II_DIR=/path/to/installed/dealii /path/to/dealii_source/tests
 </pre>
       After that the same configuration targets as described <a
       href="setupbuild">above</a> are available.
@@ -148,7 +149,7 @@ $ ctest [-j N]
 </pre>
       Here, <code>N</code> is the number of concurrent tests that should be
       run, in the same way as you can say <code>make -jN</code>. The testsuite
-      is huge and will need around 12h on current computers 
+      is huge and will need around 12h on current computers
       running single threaded.
     </p>
 
@@ -171,7 +172,7 @@ $ ctest [-j N] -E '&lt;negative regular expression&gt;'
       <a href="http://www.nongnu.org/numdiff/">numdiff</a> tool that compares
       stored and newly created output files based on floating point
       tolerances. To use it, simply export where the <code>numdiff</code>
-      executable can be found via the <code>PATH</code> 
+      executable can be found via the <code>PATH</code>
       environment variable so that it can be found during
       <code>make setup_tests</code>.
     </p>
@@ -274,7 +275,7 @@ xx: ===============================    OUTPUT END   ============================
           category: The test project failed in the configuration stage
         </li>
         <li>
-          <code>BUILD</code>: compilation error occured
+          <code>BUILD</code>: compilation error occurred
         </li>
         <li>
           <code>RUN</code>: the test executable could not be run / aborted
@@ -289,6 +290,33 @@ xx: ===============================    OUTPUT END   ============================
       Typically, tests fail because the output has changed, and you will see
       this in the DIFF phase of the test.
     </p>
+
+
+    <a name="memcheck"></a>
+     <h3>Running with valgrind</h3>
+
+     <p>
+       The testsuite can also be run using <a href="http://valgrind.org/">valgrind</a>
+       to check for <i>memory corruption</i> in the library.
+     </p>
+
+     <p>
+       You can do so by invoking
+ <pre>
+ ctest -DMEMORYCHECK=ON <...> -S ../tests/run_testsuite.cmake
+ </pre>
+       when running the testsuite, or directly by
+ <pre>
+ ctest <...> -S ../tests/run_memorycheck.cmake
+ </pre>
+     </p>
+
+     <p>
+       At the end of all of this, results will be shown in a separate section
+       "Dynamic Analysis" at the
+       <a href="http://cdash.kyomu.43-1.org/index.php?project=deal.II&display=project"
+       target="_top">deal.II cdash site</a>.
+     </p>
 
 
     <a name="coverage"></a>
@@ -306,7 +334,7 @@ xx: ===============================    OUTPUT END   ============================
 
     <p>
       To run the testsuite in this mode, essentially, you have to do three
-      things: 
+      things:
       <ol>
 	<li>
 	  build the library with appropriate profiling flags
@@ -345,6 +373,11 @@ ctest <...> -S ../tests/run_coverage.cmake
       "Coverage" at the
       <a href="http://cdash.kyomu.43-1.org/index.php?project=deal.II&display=project"
       target="_top">deal.II cdash site</a>.
+      In case you download the coverage report uploader for Codecov via
+      <code>contrib/utilities/download_codecov</code>, the coverage
+      report will also be uploaded to the
+      <a href="https://codecov.io/gh/dealii/dealii"
+      target="_top">Codecov dashboard</a>.
     </p>
 
 
@@ -424,14 +457,15 @@ category/test.output
 
     <p>
       Comparison file can actually be named in a more complex way than
-      just <code>category/test.output</code>:
+      just <code>category/test.output</code>. In pseudo code:
 <pre>
-category/test.[compiler=&lt;regex&gt;=&lt;yes|no&gt;.]*[with_&lt;feature&gt;=&lt;on|off|&lt;version&gt;&gt;.]*[mpirun=&lt;x&gt;.][expect=&lt;y&gt;.][binary.][&lt;debug|release&gt;.]output
+category/test.[with_&lt;string&gt;(&lt;=|&gt;=|=|&lt;|&gt;)&lt;on|off|version&gt;.]*
+              [mpirun=&lt;x&gt;.][expect=&lt;y&gt;.][binary.][&lt;debug|release&gt;.]output
 </pre>
       Normally, a test will be set up so that it runs twice, once in debug and
       once in release configuration.
       If a specific test can only be run in debug or release configurations but
-      not in both it is possible to restrict the setup by prepeding
+      not in both it is possible to restrict the setup by prepending
       <code>.debug</code> or <code>.release</code> directly before
       <code>.output</code>, e.g.:
 <pre>
@@ -447,22 +481,6 @@ category/test.debug.output
 category/test.release.output
 </pre>
     </p>
-
-    <a name="restrictcompiler"></a>
-    <h3>Restricting tests to specific compiler and compiler versions</h3>
-    <p>
-      In a similar vain as for build configurations, it is possible to restrict
-      tests to specific compiler versions, e.g.:
-<pre>
-category/test.compiler=GNU=yes.output, or
-category/test.compiler=ICC-14=no.output
-</pre>
-      These tests will only be set up if the specified regular expression
-      matches (in case of <code>=yes</code>), or doesn't match
-      (<code>=no</code>) the string
-      <code>${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}</code>.
-      Common compiler names are <code>GNU</code>, <code>Clang</code> or
-      <code>Intel</code>.
 
     <a name="restrictfeature"></a>
     <h3>Restricting tests to feature configurations</h3>
@@ -480,14 +498,16 @@ category/test.with_zlib=off.output
 category/test.with_64bit_indices=on.output
 category/test.with_64bit_indices=off.output
 </pre>
-      Furthermore, a test can be restricted to be run only for a specific
-      minimum version of a feature being available being available. For example
+      Furthermore, a test can be restricted to be run only if specific
+      versions of a feature are available. For example
 <pre>
-category/test.with_trilinos=11.14.1.output
+category/test.with_trilinos.geq.11.14.1.output
 </pre>
       will only be run if (a) trilinos is available, i.e.,
       <code>DEAL_II_WITH_TRILINOS=TRUE</code> and (b) if trilinos is at least
-      of version 11.14.1.
+      of version 11.14.1. Supported operators are
+      <code>=</code>, <code>.le.;</code>, <code>.ge.</code>, <code>.leq.</code>,
+      <code>.geq.</code>.
     </p>
     <p>
       It is also possible to declare multiple constraints subsequently, e.g.
@@ -498,9 +518,8 @@ category/test.with_umfpack=on.with_zlib=on.output
     <p>
       <b>Note:</b> The tests in some subdirectories of <code>tests/</code> are
       automatically run only if some feature is enabled. In this case a
-      feature constraint encoded in the output file name is 
-      redundant and should be avoided. In particular, this holds for
-      subdirectories 
+      feature constraint encoded in the output file name is redundant and
+      should be avoided. In particular, this holds for subdirectories
       <code>distributed_grids</code>, <code>lapack</code>,
       <code>metis</code>, <code>petsc</code>, <code>slepc</code>,
       <code>trilinos</code>, <code>umfpack</code>, <code>gla</code>, and
@@ -521,6 +540,7 @@ category/test.mpirun=N.output
       files for different numbers of MPI processes.
     </p>
 
+
     <a name="binary"></a>
     <h3>Tests with binary output</h3>
     <p>
@@ -535,6 +555,47 @@ category/test.binary.output
       files.
     </p>
 
+
+    <a name="variants"></a>
+    <h3>Tests with multiple comparison files</h3>
+    <p>
+      Sometimes it is necessary to provide multiple comparison files for a
+      single test, for example because you want to test code on multiple
+      platforms that produce different output files that, nonetheless, all
+      should be considered correct. An example would be tests that use the
+      <code>rand()</code> function that is implemented differently on
+      different platforms. Additional comparison files have the same path
+      as the main comparison file (in this case <code>test.output</code>)
+      followed by a dot and a variant description:
+<pre>
+category/test.output
+category/test.output.2
+category/test.output.3
+category/test.output.4
+</pre>
+      The testsuite will try to match the output against all variants in
+      alphabetical order starting with the main output file.
+    </p>
+
+    <p>
+      <b>Warning:</b> This mechanism is only meant as a last resort for
+      tests where <i>no</i> alternative approach is viable. Especially,
+      consider first to
+      <ol>
+        <li> make the test more robust such that differences can be
+          expressed in round-off errors detectable by numdiff.
+        <li> restrict comparison files to specific
+          <a href="#restrictfeature">versions of an external feature</a>.
+      </ol>
+    </p>
+
+    <p>
+      <b>Note:</b> The main comparison file (i.e., the one ending in
+      <code>output</code> is mandatory. Otherwise, no test will be
+      configured.
+    </p>
+
+
     <a name="expect"></a>
     <h3>Changing condition for success</h3>
     <p>
@@ -548,7 +609,6 @@ category/test.binary.output
 category/test.expect=run.output
 </pre>
     </p>
-
 
 
     <a name="layoutaddtests"></a>
@@ -570,7 +630,7 @@ category/test.expect=run.output
 <pre>
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2015 by the deal.II Authors
+// Copyright (C) 2015 - 2018 by the deal.II Authors
 //
 // This file is part of the deal.II library.
 //
@@ -578,8 +638,8 @@ category/test.expect=run.output
 // it, and/or modify it under the terms of the GNU Lesser General
 // Public License as published by the Free Software Foundation; either
 // version 2.1 of the License, or (at your option) any later version.
-// The full text of the license can be found in the file LICENSE at
-// the top level of the deal.II distribution.
+// The full text of the license can be found in the file LICENSE.md at
+// the top level directory of deal.II.
 //
 // ---------------------------------------------------------------------
 
@@ -652,7 +712,7 @@ $ ctest -V -R "category/my_new_test"
       make sure that the output is what you had expected. (For complex tests,
       it may sometimes be impossible to say whether the output is correct, and
       in this case we sometimes just take it to make
-      sure that future invokations of the test yield the same results.)
+      sure that future invocations of the test yield the same results.)
     </p>
 
     <p>
@@ -676,7 +736,7 @@ $ ctest -V -R "category/my_new_test"
       a <code>CMakeLists.txt</code> file into it containing
     </p>
 <pre>
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12)
 INCLUDE(../setup_testsubproject.cmake)
 PROJECT(testsuite CXX)
 INCLUDE(${DEAL_II_TARGET_CONFIG})
@@ -701,6 +761,28 @@ $ ctest [...] -V -S ../tests/run_testsuite.cmake
     </p>
 
     <p>
+      <b>Note:</b>
+      For also building the tests in parallel you have to provide suitable flags
+      using MAKEOPTS as well, i.e. you would typically use
+<pre>
+$ ctest -DMAKEOPTS="-j N" -j N [...] -V -S ../tests/run_testsuite.cmake
+</pre>
+      for compiling the library and running the tests in parallel.
+    </p>
+
+    <p>
+      It is possible to run tests and submit results for an already installed library by
+<pre>
+mkdir build && cd build
+cp $DEAL_II_SOURCE_DIR/CTestConfig.cmake .
+ctest \
+  -DCTEST_SOURCE_DIRECTORY=$DEAL_II_SOURCE_DIR/tests \
+  -DDEAL_II_DIR=$DEAL_II_DIR \
+  [...] -S $DEAL_II_SOURCE_DIR/tests/run_testsuite.cmake -V
+</pre>
+    </p>
+
+    <p>
       <b>Note:</b> The default output in script mode is very minimal.
       Therefore, it is recommended to specify <code>-V</code> which will
       give the same level of verbosity as the non-script mode.
@@ -716,9 +798,8 @@ ctest -D&lt;variable&gt;=&lt;value&gt; [...]
 <pre>
 CTEST_SOURCE_DIRECTORY
   - The source directory of deal.II
-  - If unspecified, "../deal.II" and "../../" relative to the location
-    of this script is used. If this is not a source directory, an error
-    thrown.
+  - If unspecified, "../" relative to the location of this script is
+    used. If this is not a source directory, an error is thrown.
 
 CTEST_BINARY_DIRECTORY
   - The designated build directory (already configured, empty, or non
@@ -730,27 +811,26 @@ CTEST_BINARY_DIRECTORY
 CTEST_CMAKE_GENERATOR
   - The CMake Generator to use (e.g. "Unix Makefiles", or "Ninja", see
     $ man cmake)
-  - If unspecified the current generator of a configured build directory
-    will be used, otherwise "Unix Makefiles".
+  - If unspecified the generator of a configured build directory will
+    be used, otherwise "Unix Makefiles".
 
 TRACK
-  - The track the test should be submitted to. Defaults to "Experimental".
-    Possible values are:
+  - The track the test should be submitted to. Defaults to
+    "Experimental". Possible values are:
 
     "Experimental"     - all tests that are not specifically "build" or
                          "regression" tests should go into this track
 
-    "Build Tests"      - Build tests that configure and build in a
-                         clean directory and run the build tests
-                         "build_tests/*"
+    "Build Tests"      - Build tests that configure and build in a clean
+                         directory (without actually running the
+                         testsuite)
 
-    "Nightly"          - Reserved for nightly regression tests for
-                         build bots on various architectures
+    "Regression Tests" - Reserved for the "official" regression tester
 
-    "Regression Tests" - Reserved for the regression tester
+    "Continuous"       - Reserved for the "official" regression tester
 
 CONFIG_FILE
-  - A configuration file (see docs/users/config.sample)
+  - A configuration file (see doc/users/config.sample)
     that will be used during the configuration stage (invokes
     $ cmake -C ${CONFIG_FILE}). This only has an effect if
     CTEST_BINARY_DIRECTORY is empty.
@@ -760,15 +840,20 @@ DESCRIPTION
 
 COVERAGE
   - If set to ON deal.II will be configured with
-    DEAL_II_SETUP_COVERAGE=ON, CMAKE_BUILD_TYPE=Debug and the
-    CTEST_COVERAGE() stage will be run. Test results must go into the
-    "Experimental" section.
+  DEAL_II_SETUP_COVERAGE=ON, CMAKE_BUILD_TYPE=Debug and the
+  CTEST_COVERAGE() stage will be run. Test results must go into the
+  "Experimental" section.
 
 MAKEOPTS
   - Additional options that will be passed directly to make (or ninja).
 </pre>
-      Furthermore, the variables described <a href="#setup">above</a> can also be
-      set and will be handed automatically down to <code>cmake</code>.
+
+      Furthermore, the variables TEST_TIME_LIMIT and TEST_PICKUP_REGEX (as
+      described <a href="#setupbuild">above</a>), DIFF_DIR, and NUMDIFF_DIR
+      can also be set and will be handed automatically down
+      to <code>cmake</code>. For more details on the different tracks, see
+      the <a href="https://github.com/dealii/dealii/wiki/Testing-Infrastructure">
+      Testing Infrastructure Wiki page</a>.
     </p>
 
 
@@ -791,15 +876,15 @@ MAKEOPTS
 <pre>
 mkdir dealii/build
 cd dealii/build
-ctest -j4 -S ../cmake/scripts/run_buildtest.cmake
+ctest -j4 -S ../tests/run_buildtest.cmake
 </pre>
     </p>
 
     <p>
       What this does is to compile and build deal.II in the directory
-      <code>build</code>, try to configure, build (and run a subset) of all
-      tutorial programs supported by the current configuration and send the
-      results to the CDash instance.
+      <code>build</code> (which includes building all configurable tutorial
+      programs as well) but does not run the full testsuite. The results
+      are sent to the CDash instance.
     </p>
 
     <p>

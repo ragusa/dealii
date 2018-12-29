@@ -1,6 +1,6 @@
 ## ---------------------------------------------------------------------
 ##
-## Copyright (C) 2013 - 2015 by the deal.II authors
+## Copyright (C) 2013 - 2017 by the deal.II authors
 ##
 ## This file is part of the deal.II library.
 ##
@@ -8,8 +8,8 @@
 ## it, and/or modify it under the terms of the GNU Lesser General
 ## Public License as published by the Free Software Foundation; either
 ## version 2.1 of the License, or (at your option) any later version.
-## The full text of the license can be found in the file LICENSE at
-## the top level of the deal.II distribution.
+## The full text of the license can be found in the file LICENSE.md at
+## the top level directory of deal.II.
 ##
 ## ---------------------------------------------------------------------
 
@@ -29,9 +29,16 @@
 #     TEST_LIBRARIES_RELEASE
 #       - specifying additional libraries (and targets) to link against.
 #
+#     TEST_TARGET or
+#     TEST_TARGET_DEBUG and TEST_TARGET_RELEASE
+#       - specifying a test target to be executed for a parameter run.
+#
 #     TEST_TIME_LIMIT
-#       - specifying the maximal wall clock time in seconds a test is
-#         allowed to run
+#       - Specifies the maximal wall clock time in seconds a test is
+#         allowed to run. Defaults to 600.
+#     TEST_PICKUP_REGEX
+#       - A regular expression to select only a subset of tests during setup.
+#         An empty string is interpreted as a catchall (this is the default).
 #
 # Either numdiff (if available), or diff are used for the comparison of
 # test results. Their location can be specified with NUMDIFF_DIR and
@@ -77,6 +84,11 @@ MACRO(DEAL_II_PICKUP_TESTS)
   # Necessary external interpreters and programs:
   #
 
+  IF(DEAL_II_WITH_CUDA)
+    FIND_PACKAGE(CUDA)
+    SET(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -std=c++11 -arch=sm_35 -Xcompiler ${OpenMP_CXX_FLAGS})
+  ENDIF()
+
   FIND_PACKAGE(Perl REQUIRED)
 
   FIND_PROGRAM(DIFF_EXECUTABLE
@@ -107,6 +119,66 @@ MACRO(DEAL_II_PICKUP_TESTS)
 
   IF(NUMDIFF_EXECUTABLE MATCHES "-NOTFOUND")
     SET(NUMDIFF_EXECUTABLE ${DIFF_EXECUTABLE})
+  ENDIF()
+
+  #
+  # Check that the diff programs can run and terminate successfully:
+  #
+  FOREACH(_diff_program ${NUMDIFF_EXECUTABLE} ${DIFF_EXECUTABLE})
+    EXECUTE_PROCESS(COMMAND ${_diff_program} "-v"
+      TIMEOUT 4 # seconds
+      OUTPUT_QUIET
+      ERROR_QUIET
+      RESULT_VARIABLE _diff_program_status
+      )
+
+    IF(NOT "${_diff_program_status}" STREQUAL "0")
+      MESSAGE(FATAL_ERROR
+        "\nThe command \"${_diff_program} -v\" did not run correctly: it either "
+        "failed to exit after a few seconds or returned a nonzero exit code. "
+        "The test suite cannot be set up without this program, so please "
+        "reinstall it and then run the test suite setup command again.\n")
+    ENDIF()
+  ENDFOREACH()
+
+  #
+  # Also check that numdiff is not a symlink to diff by running a relative
+  # tolerance test. Note that we set NUMDIFF_EXECUTABLE to diff in case we were
+  # not able to find it above, but here we check that the executable is really
+  # named 'numdiff'.
+  #
+  STRING(FIND "${NUMDIFF_EXECUTABLE}" "numdiff" _found_numdiff_binary)
+  IF(NOT "${_found_numdiff_binary}" STREQUAL "-1")
+    STRING(RANDOM _suffix)
+    SET(_first_test_file_name
+      "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/numdiff-test-${_suffix}-1.txt")
+    SET(_second_test_file_name
+      "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/numdiff-test-${_suffix}-2.txt")
+    FILE(WRITE "${_first_test_file_name}" "0.99999999998\n2.0\n1.0\n")
+    FILE(WRITE "${_second_test_file_name}" "1.00000000001\n2.0\n1.0\n")
+
+    EXECUTE_PROCESS(COMMAND ${NUMDIFF_EXECUTABLE}
+      "-r" "1.0e-8" "--" "${_first_test_file_name}" "${_second_test_file_name}"
+      TIMEOUT 4 # seconds
+      OUTPUT_QUIET
+      ERROR_QUIET
+      RESULT_VARIABLE _numdiff_tolerance_test_status
+      )
+
+    #
+    # Tidy up:
+    #
+    FILE(REMOVE ${_first_test_file_name})
+    FILE(REMOVE ${_second_test_file_name})
+
+    IF(NOT "${_numdiff_tolerance_test_status}" STREQUAL "0")
+      MESSAGE(FATAL_ERROR
+        "\nThe detected numdiff executable was not able to pass a simple "
+        "relative tolerance test. This usually means that either numdiff "
+        "was misconfigured or that it is a symbolic link to diff. "
+        "The test suite needs numdiff to work correctly: please reinstall "
+        "numdiff and run the test suite configuration again.\n")
+    ENDIF()
   ENDIF()
 
   #
@@ -143,64 +215,66 @@ MACRO(DEAL_II_PICKUP_TESTS)
       SET(_define_test FALSE)
     ENDIF()
 
-    #
-    # Respect compiler constraints:
-    #
-
-    STRING(REGEX MATCHALL
-      "compiler=[^=]*=(on|off|yes|no|true|false)" _matches ${_test}
-      )
-    FOREACH(_match ${_matches})
-      STRING(REGEX REPLACE
-        "^compiler=([^=]*)=(on|off|yes|no|true|false)$" "\\1"
-        _compiler ${_match}
-        )
-      STRING(REGEX MATCH "(on|off|yes|no|true|false)$" _boolean ${_match})
-
-      IF( ( "${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}"
-              MATCHES "^${_compiler}"
-            AND NOT ${_boolean} )
-          OR ( NOT "${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}"
-                   MATCHES "^${_compiler}"
-               AND ${_boolean} ) )
-        SET(_define_test FALSE)
-      ENDIF()
-    ENDFOREACH()
-
     # Disable tests using mpirun if MPI is not enabled
     STRING(REGEX MATCH "mpirun=" _matches ${_test})
     IF (_matches AND NOT DEAL_II_WITH_MPI)
       SET(_define_test FALSE)
     ENDIF()
+
     #
     # Query configuration and check whether we support it. Otherwise
     # set _define_test to FALSE:
     #
 
+    SET(_op_regex "=|\\.geq\\.|\\.leq\\.|\\.ge\\.|\\.le\\.")
+
     STRING(REGEX MATCHALL
-      "with_([0-9]|[a-z]|_)*=(on|off|yes|no|true|false|[0-9]+(\\.[0-9]+)*)"
+      "with_([0-9]|[a-z]|_)*(${_op_regex})(on|off|yes|no|true|false|[0-9]+(\\.[0-9]+)*)"
       _matches ${_test}
       )
 
     FOREACH(_match ${_matches})
-      STRING(REGEX REPLACE "^with_(([0-9]|[a-z]|_)*)=.*" "\\1" _feature ${_match})
+      #
+      # Extract feature name, comparison operator, (a possible) boolean and
+      # (a possible) version number from the feature constraint:
+      #
+      STRING(REGEX REPLACE "^with_(([0-9]|[a-z]|_)*)(${_op_regex}).*" "\\1" _feature ${_match})
       STRING(TOUPPER ${_feature} _feature)
+      STRING(REGEX MATCH "(${_op_regex})" _operator ${_match})
+      STRING(REGEX REPLACE "^with_(([0-9]|[a-z]|_)*)(${_op_regex}).*$" "\\3" _operator ${_match})
+      STRING(REGEX MATCH "(on|off|yes|no|true|false)$" _boolean ${_match})
+      STRING(REGEX MATCH "([0-9]+(\\.[0-9]+)*)$" _version ${_match})
 
-      IF(NOT DEFINED DEAL_II_WITH_${_feature})
-        MESSAGE(FATAL_ERROR "
-Invalid feature constraint \"${_match}\" in file
-\"${_comparison}\":
-The feature \"DEAL_II_${_feature}\" does not exist.\n"
-          )
+      #
+      # We support two variables: DEAL_II_WITH_<FEATURE> and DEAL_II_<FEATURE>
+      #
+      SET(_variable "DEAL_II_WITH_${_feature}")
+      IF(NOT DEFINED ${_variable})
+        SET(_variable "DEAL_II_${_feature}")
+        IF(NOT DEFINED ${_variable})
+          #
+          # If a variable is undefined, assume that we cannot configure a
+          # given test
+          #
+          SET(_define_test FALSE)
+        ENDIF()
       ENDIF()
 
       #
       # First process simple yes/no feature constraints:
       #
-      STRING(REGEX MATCH "(on|off|yes|no|true|false)$" _boolean ${_match})
       IF(NOT "${_boolean}" STREQUAL "")
-        IF( (DEAL_II_WITH_${_feature} AND NOT ${_boolean}) OR
-            (NOT DEAL_II_WITH_${_feature} AND ${_boolean}) )
+        IF(NOT "${_operator}" STREQUAL "=")
+          MESSAGE(FATAL_ERROR "
+Invalid syntax in constraint \"${_match}\" in file
+\"${_comparison}\":
+Comparison operator \"=\" expected for boolean match.\n"
+            )
+        ENDIF()
+
+        # This is why I hate CMake :-/
+        IF( (${_variable} AND NOT ${_boolean}) OR
+            (NOT ${_variable} AND ${_boolean}) )
           SET(_define_test FALSE)
         ENDIF()
       ENDIF()
@@ -208,18 +282,22 @@ The feature \"DEAL_II_${_feature}\" does not exist.\n"
       #
       # Process version constraints:
       #
-      STRING(REGEX MATCH "([0-9]+(\\.[0-9]+)*)$" _version ${_match})
       IF(NOT "${_version}" STREQUAL "")
 
-        IF(NOT ${DEAL_II_WITH_${_feature}})
-          SET(_define_test FALSE)
-        ENDIF()
-
-        IF("${DEAL_II_${_feature}_VERSION}" VERSION_LESS "${_version}")
+        IF( ( NOT ${DEAL_II_WITH_${_feature}} ) OR
+            ( "${_operator}" STREQUAL "=" AND
+              NOT "${DEAL_II_${_feature}_VERSION}" VERSION_EQUAL "${_version}" ) OR
+            ( "${_operator}" STREQUAL ".ge." AND
+              NOT "${DEAL_II_${_feature}_VERSION}" VERSION_GREATER "${_version}" ) OR
+            ( "${_operator}" STREQUAL ".le." AND
+              NOT "${DEAL_II_${_feature}_VERSION}" VERSION_LESS "${_version}" ) OR
+            ( "${_operator}" STREQUAL ".geq." AND
+              "${DEAL_II_${_feature}_VERSION}" VERSION_LESS "${_version}" ) OR
+            ( "${_operator}" STREQUAL ".leq." AND
+              "${DEAL_II_${_feature}_VERSION}" VERSION_GREATER "${_version}" ) )
           SET(_define_test FALSE)
         ENDIF()
       ENDIF()
-
     ENDFOREACH()
 
     IF(_define_test)

@@ -8,8 +8,8 @@
 ## it, and/or modify it under the terms of the GNU Lesser General
 ## Public License as published by the Free Software Foundation; either
 ## version 2.1 of the License, or (at your option) any later version.
-## The full text of the license can be found in the file LICENSE at
-## the top level of the deal.II distribution.
+## The full text of the license can be found in the file LICENSE.md at
+## the top level directory of deal.II.
 ##
 ## ---------------------------------------------------------------------
 
@@ -20,7 +20,7 @@
 # configuration to determine paths, locations and names. Some linkage and
 # crosscompilation setup happens also in here.
 #
-# Definitions marked with *) can be overriden by defining them to cache
+# Definitions marked with *) can be overridden by defining them to cache
 # prior to the call of this file. This is done with the help of the
 # SET_IF_EMPTY macro.
 #
@@ -45,6 +45,7 @@
 #     DEAL_II_EXECUTABLE_RELDIR       *)
 #     DEAL_II_INCLUDE_RELDIR          *)
 #     DEAL_II_LIBRARY_RELDIR          *)
+#     DEAL_II_PKGCONF_RELDIR          *)
 #     DEAL_II_PROJECT_CONFIG_RELDIR   *)
 #     DEAL_II_SHARE_RELDIR            *)
 #     DEAL_II_DOCREADME_RELDIR        *)
@@ -77,9 +78,8 @@ FILE(STRINGS "${CMAKE_SOURCE_DIR}/VERSION" _version LIMIT_COUNT 1)
 SET_IF_EMPTY(DEAL_II_PACKAGE_VERSION "${_version}")
 
 #
-# We expect a version number of the form "X.Y.Z", where X and Y are always
-# numbers and Z is either a third number (for a release version) or a short
-# string.
+# We expect a version number of the form "X.Y.Z" or "X.Y.Z-bla", where X, Y, Z
+# are always numbers and bla is a short string ("pre", "rc0", "rc1", etc.).
 #
 STRING(REGEX REPLACE "^([0-9]+)\\..*" "\\1"
   DEAL_II_VERSION_MAJOR "${DEAL_II_PACKAGE_VERSION}"
@@ -87,18 +87,10 @@ STRING(REGEX REPLACE "^([0-9]+)\\..*" "\\1"
 STRING(REGEX REPLACE "^[0-9]+\\.([0-9]+).*" "\\1"
   DEAL_II_VERSION_MINOR "${DEAL_II_PACKAGE_VERSION}"
   )
+STRING(REGEX REPLACE "^[0-9]+\\.[0-9]+\\.([0-9]+).*" "\\1"
+  DEAL_II_VERSION_SUBMINOR "${DEAL_II_PACKAGE_VERSION}"
+  )
 
-#
-# If Z is not a number, replace it with "0", otherwise extract version
-# number:
-#
-IF(DEAL_II_PACKAGE_VERSION MATCHES "^[0-9]+\\.[0-9]+.*\\.[0-9]+.*")
-  STRING(REGEX REPLACE "^[0-9]+\\.[0-9]+.*\\.([0-9]+).*" "\\1"
-    DEAL_II_VERSION_SUBMINOR "${DEAL_II_PACKAGE_VERSION}"
-    )
-ELSE()
-  SET(DEAL_II_VERSION_SUBMINOR "0")
-ENDIF()
 SET(DEAL_II_VERSION ${DEAL_II_VERSION_MAJOR}.${DEAL_II_VERSION_MINOR}.${DEAL_II_VERSION_SUBMINOR})
 
 
@@ -121,6 +113,7 @@ SET_IF_EMPTY(DEAL_II_RELEASE_SUFFIX "")
 SET_IF_EMPTY(DEAL_II_EXECUTABLE_RELDIR "bin")
 SET_IF_EMPTY(DEAL_II_INCLUDE_RELDIR "include")
 SET_IF_EMPTY(DEAL_II_LIBRARY_RELDIR "lib${LIB_SUFFIX}")
+SET_IF_EMPTY(DEAL_II_PKGCONF_RELDIR "${DEAL_II_LIBRARY_RELDIR}/pkgconfig")
 SET_IF_EMPTY(DEAL_II_PROJECT_CONFIG_RELDIR "${DEAL_II_LIBRARY_RELDIR}/cmake/${DEAL_II_PROJECT_CONFIG_NAME}")
 SET_IF_EMPTY(DEAL_II_SHARE_RELDIR "share/${DEAL_II_PACKAGE_NAME}")
 #

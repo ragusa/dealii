@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2008 - 2013 by the deal.II authors
+// Copyright (C) 2008 - 2017 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -8,78 +8,71 @@
 // it, and/or modify it under the terms of the GNU Lesser General
 // Public License as published by the Free Software Foundation; either
 // version 2.1 of the License, or (at your option) any later version.
-// The full text of the license can be found in the file LICENSE at
-// the top level of the deal.II distribution.
+// The full text of the license can be found in the file LICENSE.md at
+// the top level directory of deal.II.
 //
 // ---------------------------------------------------------------------
 
-#ifndef __deal2__distributed__tria_base_h
-#define __deal2__distributed__tria_base_h
+#ifndef dealii_distributed_tria_base_h
+#define dealii_distributed_tria_base_h
 
 
 #include <deal.II/base/config.h>
-#include <deal.II/base/subscriptor.h>
+
+#include <deal.II/base/mpi.h>
 #include <deal.II/base/smartpointer.h>
+#include <deal.II/base/subscriptor.h>
 #include <deal.II/base/template_constraints.h>
+
 #include <deal.II/grid/tria.h>
 
-#include <deal.II/base/std_cxx1x/function.h>
-#include <deal.II/base/std_cxx1x/tuple.h>
-
-#include <set>
-#include <vector>
+#include <functional>
 #include <list>
+#include <set>
+#include <tuple>
 #include <utility>
-
-#ifdef DEAL_II_WITH_MPI
-#  include <mpi.h>
-#endif
+#include <vector>
 
 
 DEAL_II_NAMESPACE_OPEN
-
-template <int, int> class Triangulation;
-
 
 namespace parallel
 {
   /**
    * This class describes the interface for all triangulation classes that
-   * work in parallel, namely parallel::distributed::Triangulation
-   * and parallel::shared::Triangulation.
+   * work in parallel, namely parallel::distributed::Triangulation and
+   * parallel::shared::Triangulation.
    */
   template <int dim, int spacedim = dim>
-  class Triangulation : public dealii::Triangulation<dim,spacedim>
+  class Triangulation : public dealii::Triangulation<dim, spacedim>
   {
   public:
-
     /**
      * Constructor.
      */
-#ifdef DEAL_II_WITH_MPI
-    Triangulation (MPI_Comm mpi_communicator,
-                   const typename dealii::Triangulation<dim,spacedim>::MeshSmoothing smooth_grid = (dealii::Triangulation<dim,spacedim>::none),
-                   const bool check_for_distorted_cells = false);
-#else
-    Triangulation ();
-#endif
+    Triangulation(
+      MPI_Comm mpi_communicator,
+      const typename dealii::Triangulation<dim, spacedim>::MeshSmoothing
+                 smooth_grid = (dealii::Triangulation<dim, spacedim>::none),
+      const bool check_for_distorted_cells = false);
 
     /**
      * Destructor.
      */
-    virtual ~Triangulation ();
+    virtual ~Triangulation() override;
 
-#ifdef DEAL_II_WITH_MPI
     /**
      * Return MPI communicator used by this triangulation.
      */
-    virtual MPI_Comm get_communicator () const;
-#endif
+    virtual MPI_Comm
+    get_communicator() const;
 
     /**
      * Implementation of the same function as in the base class.
      */
-    virtual void copy_triangulation (const dealii::Triangulation<dim, spacedim> &old_tria);
+    virtual void
+    copy_triangulation(
+      const dealii::Triangulation<dim, spacedim> &old_tria) override;
 
     /**
      * Return the number of active cells owned by each of the MPI processes
@@ -88,50 +81,54 @@ namespace parallel
      * n_locally_owned_active_cells().
      */
     const std::vector<unsigned int> &
-    n_locally_owned_active_cells_per_processor () const;
+    n_locally_owned_active_cells_per_processor() const;
 
 
     /**
-     * Return the number of active cells in the triangulation that are
-     * locally owned, i.e. that have a subdomain_id equal to
-     * locally_owned_subdomain(). Note that there may be more active cells
-     * in the triangulation stored on the present processor, such as for
-     * example ghost cells, or cells further away from the locally owned
-     * block of cells but that are needed to ensure that the triangulation
-     * that stores this processor's set of active cells still remains
-     * balanced with respect to the 2:1 size ratio of adjacent cells.
+     * Return the number of active cells in the triangulation that are locally
+     * owned, i.e. that have a subdomain_id equal to
+     * locally_owned_subdomain(). Note that there may be more active cells in
+     * the triangulation stored on the present processor, such as for example
+     * ghost cells, or cells further away from the locally owned block of
+     * cells but that are needed to ensure that the triangulation that stores
+     * this processor's set of active cells still remains balanced with
+     * respect to the 2:1 size ratio of adjacent cells.
      *
      * As a consequence of the remark above, the result of this function is
      * always smaller or equal to the result of the function with the same
-     * name in the ::Triangulation base class, which includes the active
-     * ghost and artificial cells (see also
+     * name in the ::Triangulation base class, which includes the active ghost
+     * and artificial cells (see also
      * @ref GlossArtificialCell
      * and
      * @ref GlossGhostCell).
      */
-    unsigned int n_locally_owned_active_cells () const;
+    unsigned int
+    n_locally_owned_active_cells() const;
 
     /**
-     * Return the sum over all processors of the number of active cells
-     * owned by each processor. This equals the overall number of active
-     * cells in the triangulation.
+     * Return the sum over all processors of the number of active cells owned
+     * by each processor. This equals the overall number of active cells in
+     * the triangulation.
      */
-    virtual types::global_dof_index n_global_active_cells () const;
+    virtual types::global_dof_index
+    n_global_active_cells() const override;
 
     /**
      * Return the local memory consumption in bytes.
      */
-    virtual std::size_t memory_consumption () const;
+    virtual std::size_t
+    memory_consumption() const override;
 
 
     /**
-     * Returns the global maximum level. This may be bigger than the number
+     * Return the global maximum level. This may be bigger than the number
      * dealii::Triangulation::n_levels() (a function in this class's base
      * class) returns if the current processor only stores cells in parts of
      * the domain that are not very refined, but if other processors store
      * cells in more deeply refined parts of the domain.
      */
-    virtual unsigned int n_global_levels () const;
+    virtual unsigned int
+    n_global_levels() const override;
 
     /**
      * Return the subdomain id of those cells that are owned by the current
@@ -139,38 +136,90 @@ namespace parallel
      * subdomain id are either owned by another processor or have children
      * that only exist on other processors.
      */
-    types::subdomain_id locally_owned_subdomain () const;
+    types::subdomain_id
+    locally_owned_subdomain() const override;
 
+    /**
+     * Return a set of MPI ranks of the processors that have at least one
+     * ghost cell adjacent to the cells of the local processor. In other
+     * words, this is the set of subdomain_id() for all ghost cells.
+     *
+     * @note: If @p i is contained in the list of processor @p j, then @p j
+     * will also be contained in the list of processor @p i.
+     */
+    const std::set<types::subdomain_id> &
+    ghost_owners() const;
+
+    /**
+     * Return a set of MPI ranks of the processors that have at least one
+     * level ghost cell adjacent to our cells used in geometric multigrid. In
+     * other words, this is the set of level_subdomain_id() for all level
+     * ghost cells.
+     *
+     * @note: If @p i is contained in the list of processor @p j, then @p j
+     * will also be contained in the list of processor @p i.
+     */
+    const std::set<types::subdomain_id> &
+    level_ghost_owners() const;
+
+    /**
+     * Return a map that, for each vertex, lists all the processors whose
+     * subdomains are adjacent to that vertex.
+     */
+    virtual std::map<unsigned int, std::set<dealii::types::subdomain_id>>
+    compute_vertices_with_ghost_neighbors() const;
 
   protected:
-#ifdef DEAL_II_WITH_MPI
     /**
      * MPI communicator to be used for the triangulation. We create a unique
-     * communicator for this class, which is a duplicate of the one passed
-     * to the constructor.
+     * communicator for this class, which is a duplicate of the one passed to
+     * the constructor.
      */
     MPI_Comm mpi_communicator;
-#endif
 
     /**
-     * The subdomain id to be used for the current processor.
+     * The subdomain id to be used for the current processor. This is the MPI
+     * rank.
      */
     types::subdomain_id my_subdomain;
 
     /**
-     * total number of subdomains.
+     * The total number of subdomains (or the size of the MPI communicator).
      */
     types::subdomain_id n_subdomains;
 
     /**
-     * A structure that contains some numbers about the distributed
+     * A structure that contains information about the distributed
      * triangulation.
      */
     struct NumberCache
     {
+      /**
+       * This vector stores the number of locally owned active cells per MPI
+       * rank.
+       */
       std::vector<unsigned int> n_locally_owned_active_cells;
-      types::global_dof_index   n_global_active_cells;
-      unsigned int              n_global_levels;
+      /**
+       * The total number of active cells (sum of @p
+       * n_locally_owned_active_cells).
+       */
+      types::global_dof_index n_global_active_cells;
+      /**
+       * The global number of levels computed as the maximum number of levels
+       * taken over all MPI ranks, so <tt>n_levels()<=n_global_levels =
+       * max(n_levels() on proc i)</tt>.
+       */
+      unsigned int n_global_levels;
+      /**
+       * A set containing the subdomain_id (MPI rank) of the owners of the
+       * ghost cells on this processor.
+       */
+      std::set<types::subdomain_id> ghost_owners;
+      /**
+       * A set containing the MPI ranks of the owners of the level ghost cells
+       * on this processor (for all levels).
+       */
+      std::set<types::subdomain_id> level_ghost_owners;
 
       NumberCache();
     };
@@ -180,9 +229,14 @@ namespace parallel
     /**
      * Update the number_cache variable after mesh creation or refinement.
      */
-    void update_number_cache ();
+    virtual void
+    update_number_cache();
 
-
+    /**
+     * Store MPI ranks of level ghost owners of this processor on all levels.
+     */
+    void
+    fill_level_ghost_owners();
   };
 
 } // namespace parallel

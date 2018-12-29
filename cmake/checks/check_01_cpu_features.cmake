@@ -1,6 +1,6 @@
 ## ---------------------------------------------------------------------
 ##
-## Copyright (C) 2012 - 2015 by the deal.II authors
+## Copyright (C) 2012 - 2018 by the deal.II authors
 ##
 ## This file is part of the deal.II library.
 ##
@@ -8,8 +8,8 @@
 ## it, and/or modify it under the terms of the GNU Lesser General
 ## Public License as published by the Free Software Foundation; either
 ## version 2.1 of the License, or (at your option) any later version.
-## The full text of the license can be found in the file LICENSE at
-## the top level of the deal.II distribution.
+## The full text of the license can be found in the file LICENSE.md at
+## the top level directory of deal.II.
 ##
 ## ---------------------------------------------------------------------
 
@@ -27,6 +27,7 @@
 #   DEAL_II_HAVE_SSE2                    *)
 #   DEAL_II_HAVE_AVX                     *)
 #   DEAL_II_HAVE_AVX512                  *)
+#   DEAL_II_HAVE_ALTIVEC                 *)
 #   DEAL_II_COMPILER_VECTORIZATION_LEVEL
 #   DEAL_II_HAVE_OPENMP_SIMD             *)
 #   DEAL_II_OPENMP_SIMD_PRAGMA
@@ -39,7 +40,7 @@
 
 
 #
-# Determine the Endianess of the platform:
+# Determine the Endianness of the platform:
 #
 IF(CMAKE_C_COMPILER_WORKS)
   INCLUDE(TestBigEndian)
@@ -68,16 +69,11 @@ ENDIF()
 
 IF(DEAL_II_ALLOW_PLATFORM_INTROSPECTION)
   #
-  # Take care that the following tests are rerun if CMAKE_REQUIRED_FLAGS
-  # changes..
+  # Take care that the following tests are rerun if the
+  # CMAKE_REQUIRED_FLAGS changes..
   #
-  IF(NOT "${CMAKE_REQUIRED_FLAGS}" STREQUAL "${DEAL_II_CHECK_CPU_FEATURES_SAVED}")
-    UNSET(DEAL_II_HAVE_SSE2 CACHE)
-    UNSET(DEAL_II_HAVE_AVX CACHE)
-    UNSET(DEAL_II_HAVE_AVX512 CACHE)
-  ENDIF()
-  SET(DEAL_II_CHECK_CPU_FEATURES_SAVED
-    "${CMAKE_REQUIRED_FLAGS}" CACHE INTERNAL "" FORCE
+  UNSET_IF_CHANGED(CHECK_CPU_FEATURES_FLAGS_SAVED "${CMAKE_REQUIRED_FLAGS}"
+    DEAL_II_HAVE_SSE2 DEAL_II_HAVE_AVX DEAL_II_HAVE_AVX512 DEAL_II_HAVE_ALTIVEC
     )
 
   CHECK_CXX_SOURCE_RUNS(
@@ -91,14 +87,14 @@ IF(DEAL_II_ALLOW_PLATFORM_INTROSPECTION)
     __m128d * data =
       reinterpret_cast<__m128d*>(_mm_malloc (2*vector_bytes, vector_bytes));
     double * ptr = reinterpret_cast<double*>(&a);
-    ptr[0] = (volatile double)(1.0);
+    ptr[0] = static_cast<volatile double>(1.0);
     for (int i=1; i<n_vectors; ++i)
       ptr[i] = 0.0;
-    b = _mm_set1_pd ((volatile double)(2.25));
+    b = _mm_set1_pd (static_cast<volatile double>(2.25));
     data[0] = _mm_add_pd (a, b);
     data[1] = _mm_mul_pd (b, data[0]);
     ptr = reinterpret_cast<double*>(&data[1]);
-    unsigned int return_value = 0;
+    int return_value = 0;
     if (ptr[0] != 7.3125)
       return_value = 1;
     for (int i=1; i<n_vectors; ++i)
@@ -117,6 +113,9 @@ IF(DEAL_II_ALLOW_PLATFORM_INTROSPECTION)
   #
   CHECK_CXX_SOURCE_RUNS(
     "
+    #ifndef __AVX__
+    #error \"__AVX__ flag not set, no support for AVX\"
+    #endif
     #include <immintrin.h>
     class VectorizedArray
     {
@@ -144,14 +143,14 @@ IF(DEAL_II_ALLOW_PLATFORM_INTROSPECTION)
       __m256d * data =
         reinterpret_cast<__m256d*>(_mm_malloc (2*vector_bytes, vector_bytes));
       double * ptr = reinterpret_cast<double*>(&a);
-      ptr[0] = (volatile double)(1.0);
+      ptr[0] = static_cast<volatile double>(1.0);
       for (int i=1; i<n_vectors; ++i)
         ptr[i] = 0.0;
-      b = _mm256_set1_pd ((volatile double)(2.25));
+      b = _mm256_set1_pd (static_cast<volatile double>(2.25));
       data[0] = _mm256_add_pd (a, b);
       data[1] = _mm256_mul_pd (b, data[0]);
       ptr = reinterpret_cast<double*>(&data[1]);
-      unsigned int return_value = 0;
+      int return_value = 0;
       if (ptr[0] != 7.3125)
         return_value = 1;
       for (int i=1; i<n_vectors; ++i)
@@ -173,6 +172,9 @@ IF(DEAL_II_ALLOW_PLATFORM_INTROSPECTION)
 
   CHECK_CXX_SOURCE_RUNS(
     "
+    #ifndef __AVX512F__
+    #error \"__AVX512F__ flag not set, no support for AVX512\"
+    #endif
     #include <immintrin.h>
     int main()
     {
@@ -182,15 +184,15 @@ IF(DEAL_II_ALLOW_PLATFORM_INTROSPECTION)
       __m512d * data =
         reinterpret_cast<__m512d*>(_mm_malloc (2*vector_bytes, vector_bytes));
       double * ptr = reinterpret_cast<double*>(&a);
-      ptr[0] = (volatile double)(1.0);
+      ptr[0] = static_cast<volatile double>(1.0);
       for (int i=1; i<n_vectors; ++i)
         ptr[i] = 0.0;
       const volatile double x = 2.25;
-      b = _mm512_set_pd(x, x, x, x, x, x, x, x);
+      b = _mm512_set1_pd(x);
       data[0] = _mm512_add_pd (a, b);
       data[1] = _mm512_mul_pd (b, data[0]);
       ptr = reinterpret_cast<double*>(&data[1]);
-      unsigned int return_value = 0;
+      int return_value = 0;
       if (ptr[0] != 7.3125)
         return_value = 1;
       for (int i=1; i<n_vectors; ++i)
@@ -201,6 +203,48 @@ IF(DEAL_II_ALLOW_PLATFORM_INTROSPECTION)
     }
     "
     DEAL_II_HAVE_AVX512)
+
+  CHECK_CXX_SOURCE_RUNS(
+    "
+    #ifndef __ALTIVEC__
+    #error \"__ALTIVEC__ flag not set, no support for Altivec\"
+    #endif
+    #include <altivec.h>
+    #undef vector
+    #undef pixel
+    #undef bool
+    int main()
+    {
+    __vector double a, b, data1, data2;
+    const int n_vectors = sizeof(a)/sizeof(double);
+    double * ptr = reinterpret_cast<double*>(&a);
+    ptr[0] = static_cast<volatile double>(1.0);
+    for (int i=1; i<n_vectors; ++i)
+      ptr[i] = 0.0;
+    b = vec_splats (static_cast<volatile double>(2.25));
+    data1 = vec_add (a, b);
+    data2 = vec_mul (b, data1);
+    ptr = reinterpret_cast<double*>(&data2);
+    int return_value = 0;
+    if (ptr[0] != 7.3125)
+      return_value += 1;
+    for (int i=1; i<n_vectors; ++i)
+      if (ptr[i] != 5.0625)
+        return_value += 2;
+    b = vec_splats (static_cast<volatile double>(-1.0));
+    data1 = vec_abs(vec_mul (b, data2));
+    vec_vsx_st(data1, 0, ptr);
+    b = vec_vsx_ld(0, ptr);
+    ptr = reinterpret_cast<double*>(&b);
+    if (ptr[0] != 7.3125)
+      return_value += 4;
+    for (int i=1; i<n_vectors; ++i)
+      if (ptr[i] != 5.0625)
+        return_value += 8;
+    return return_value;
+    }
+    "
+    DEAL_II_HAVE_ALTIVEC)
 ENDIF()
 
 IF(DEAL_II_HAVE_AVX512)
@@ -213,39 +257,39 @@ ELSE()
   SET(DEAL_II_COMPILER_VECTORIZATION_LEVEL 0)
 ENDIF()
 
-
-#
-# OpenMP 4.0 can be used for vectorization (supported by gcc-4.9.1 and
-# later). Only the vectorization instructions
-# are allowed, the threading must done through TBB.
-#
-
-IF(DEAL_II_ALLOW_PLATFORM_INTROSPECTION)
-  IF(CMAKE_CXX_COMPILER_ID MATCHES "Intel")
-    # there is no openmp-simd support in Intel 13 and the flag got renamed in 15+
-    IF(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "15")
-      CHECK_CXX_COMPILER_FLAG("-qopenmp-simd" DEAL_II_HAVE_OPENMP_SIMD)
-    ELSEIF(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "14")
-      CHECK_CXX_COMPILER_FLAG("-openmp-simd" DEAL_II_HAVE_OPENMP_SIMD)
-    ENDIF()
-  ELSE()
-    CHECK_CXX_COMPILER_FLAG("-fopenmp-simd" DEAL_II_HAVE_OPENMP_SIMD)
-  ENDIF()
+IF(DEAL_II_HAVE_ALTIVEC)
+  SET(DEAL_II_COMPILER_VECTORIZATION_LEVEL 1)
 ENDIF()
 
+
+#
+# OpenMP 4.0 can be used for vectorization. Only the vectorization
+# instructions are allowed, the threading must be done through TBB.
+#
+
+#
+# Choosing the right compiler flag is a bit of a mess:
+#
+IF(CMAKE_CXX_COMPILER_ID MATCHES "Intel")
+  IF("${CMAKE_CXX_COMPILER_VERSION}" VERSION_GREATER "15" )
+    SET(_keyword "qopenmp")
+  ELSEIF("${CMAKE_CXX_COMPILER_VERSION}" VERSION_GREATER "14" )
+    SET(_keyword "openmp")
+  ENDIF()
+ELSEIF(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  SET(_keyword "openmp")
+ELSE()
+  SET(_keyword "fopenmp")
+ENDIF()
+
+CHECK_CXX_COMPILER_FLAG("-${_keyword}-simd" DEAL_II_HAVE_OPENMP_SIMD)
+
+SET(DEAL_II_OPENMP_SIMD_PRAGMA " ")
 IF(DEAL_II_HAVE_OPENMP_SIMD)
+  ADD_FLAGS(DEAL_II_CXX_FLAGS "-${_keyword}-simd")
+  # Intel is special:
   IF(CMAKE_CXX_COMPILER_ID MATCHES "Intel")
-    IF(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER "15")
-      ADD_FLAGS(DEAL_II_CXX_FLAGS "-qopenmp-simd")
-      ADD_FLAGS(DEAL_II_LINKER_FLAGS "-qopenmp")
-    ELSE()
-      ADD_FLAGS(DEAL_II_CXX_FLAGS "-openmp-simd")
-      ADD_FLAGS(DEAL_II_LINKER_FLAGS "-openmp")
-    ENDIF()
-  ELSE()
-    ADD_FLAGS(DEAL_II_CXX_FLAGS "-fopenmp-simd")
+    ADD_FLAGS(DEAL_II_LINKER_FLAGS "-${_keyword}")
   ENDIF()
   SET(DEAL_II_OPENMP_SIMD_PRAGMA "_Pragma(\"omp simd\")")
-ELSE()
-  SET(DEAL_II_OPENMP_SIMD_PRAGMA " ")
 ENDIF()

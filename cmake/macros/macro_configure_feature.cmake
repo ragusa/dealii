@@ -1,6 +1,6 @@
 ## ---------------------------------------------------------------------
 ##
-## Copyright (C) 2012 - 2015 by the deal.II authors
+## Copyright (C) 2012 - 2017 by the deal.II authors
 ##
 ## This file is part of the deal.II library.
 ##
@@ -8,8 +8,8 @@
 ## it, and/or modify it under the terms of the GNU Lesser General
 ## Public License as published by the Free Software Foundation; either
 ## version 2.1 of the License, or (at your option) any later version.
-## The full text of the license can be found in the file LICENSE at
-## the top level of the deal.II distribution.
+## The full text of the license can be found in the file LICENSE.md at
+## the top level directory of deal.II.
 ##
 ## ---------------------------------------------------------------------
 
@@ -24,7 +24,7 @@
 #
 # FEATURE_${feature}_DEPENDS    (a variable)
 #    a variable which contains an optional list of other features
-#    this feature depends on (and which have to be enbled for this feature
+#    this feature depends on (and which have to be enabled for this feature
 #    to work.)
 #    Features must be given with short name, i.e. without DEAL_II_WITH_
 #
@@ -45,7 +45,7 @@
 #
 # FEATURE_${feature}_FIND_EXTERNAL(var)   (a macro)
 #    which should set var to TRUE if all dependencies for the feature are
-#    fullfilled. In this case all necessary variables for
+#    fulfilled. In this case all necessary variables for
 #    FEATURE_${feature}_CONFIGURE_EXTERNAL must be set. Otherwise
 #    var should remain unset.
 #    If not defined, FIND_PACKAGE(${feature}) is called.
@@ -55,7 +55,7 @@
 #    external dependencies.
 #
 # FEATURE_${feature}_ERROR_MESSAGE()  (macro)
-#    which should print a meaningfull error message (with FATAL_ERROR) for
+#    which should print a meaningful error message (with FATAL_ERROR) for
 #    the case that no usable library was found.
 #    If not defined, a suitable default error message will be printed.
 #
@@ -66,15 +66,6 @@
 #                            Helper Macros:                            #
 #                                                                      #
 ########################################################################
-
-#
-# Some black magic to have substitution in command names:
-#
-MACRO(RUN_COMMAND _the_command)
-  FILE(WRITE "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/macro_configure_feature.tmp"
-    "${_the_command}")
-  INCLUDE("${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/macro_configure_feature.tmp")
-ENDMACRO()
 
 
 #
@@ -123,7 +114,8 @@ or set the relevant variables by hand in ccmake."
     ${${_feature}_ADDITIONAL_ERROR_STRING}
     "Please ensure that a suitable ${_feature_lowercase} library is installed on your computer.\n"
     "If the library is not at a default location, either provide some hints "
-    "for autodetection,${_hint_snippet}${_bundled_snippet}"
+    "for autodetection,${_hint_snippet}"
+    ${_bundled_snippet}
     )
 ENDMACRO()
 
@@ -146,6 +138,12 @@ ENDMACRO()
 ########################################################################
 
 MACRO(CONFIGURE_FEATURE _feature)
+
+  #
+  # Register the feature in the DEAL_II_FEATURES list
+  #
+  LIST(APPEND DEAL_II_FEATURES ${_feature})
+
   #
   # This script is arcane black magic. But at least for the better good: We
   # don't have to copy the configuration logic to every single
@@ -189,7 +187,7 @@ MACRO(CONFIGURE_FEATURE _feature)
      DEAL_II_WITH_${_feature})
 
     #
-    # Are all dependencies fullfilled?
+    # Are all dependencies fulfilled?
     #
     SET(_dependencies_ok TRUE)
     FOREACH(_dependency ${FEATURE_${_feature}_DEPENDS})
@@ -220,9 +218,8 @@ MACRO(CONFIGURE_FEATURE _feature)
         PURGE_FEATURE(${_feature})
 
         IF(FEATURE_${_feature}_HAVE_BUNDLED)
-          RUN_COMMAND("FEATURE_${_feature}_CONFIGURE_BUNDLED()")
+          EVALUATE_EXPRESSION("FEATURE_${_feature}_CONFIGURE_BUNDLED()")
           MESSAGE(STATUS "DEAL_II_WITH_${_feature} successfully set up with bundled packages.")
-          LIST(APPEND DEAL_II_FEATURES ${_feature})
           SET(FEATURE_${_feature}_BUNDLED_CONFIGURED TRUE)
           SET_CACHED_OPTION(${_feature} ON)
         ELSE()
@@ -237,18 +234,17 @@ MACRO(CONFIGURE_FEATURE _feature)
         # Second case: We are allowed to search for an external library
         #
         IF(COMMAND FEATURE_${_feature}_FIND_EXTERNAL)
-          RUN_COMMAND("FEATURE_${_feature}_FIND_EXTERNAL(FEATURE_${_feature}_EXTERNAL_FOUND)")
+          EVALUATE_EXPRESSION("FEATURE_${_feature}_FIND_EXTERNAL(FEATURE_${_feature}_EXTERNAL_FOUND)")
         ELSE()
           FEATURE_FIND_EXTERNAL(${_feature} FEATURE_${_feature}_EXTERNAL_FOUND)
         ENDIF()
 
         IF(FEATURE_${_feature}_EXTERNAL_FOUND)
           IF(COMMAND FEATURE_${_feature}_CONFIGURE_EXTERNAL)
-            RUN_COMMAND("FEATURE_${_feature}_CONFIGURE_EXTERNAL()")
+            EVALUATE_EXPRESSION("FEATURE_${_feature}_CONFIGURE_EXTERNAL()")
           ENDIF()
 
           MESSAGE(STATUS "DEAL_II_WITH_${_feature} successfully set up with external dependencies.")
-          LIST(APPEND DEAL_II_FEATURES ${_feature})
           SET(FEATURE_${_feature}_EXTERNAL_CONFIGURED TRUE)
           SET_CACHED_OPTION(${_feature} ON)
 
@@ -259,17 +255,16 @@ MACRO(CONFIGURE_FEATURE _feature)
           MESSAGE(STATUS "DEAL_II_WITH_${_feature} has unmet external dependencies.")
 
           IF(FEATURE_${_feature}_HAVE_BUNDLED AND DEAL_II_ALLOW_BUNDLED)
-            RUN_COMMAND("FEATURE_${_feature}_CONFIGURE_BUNDLED()")
+            EVALUATE_EXPRESSION("FEATURE_${_feature}_CONFIGURE_BUNDLED()")
 
             MESSAGE(STATUS "DEAL_II_WITH_${_feature} successfully set up with bundled packages.")
-            LIST(APPEND DEAL_II_FEATURES ${_feature})
             SET(FEATURE_${_feature}_BUNDLED_CONFIGURED TRUE)
             SET_CACHED_OPTION(${_feature} ON)
 
           ELSE()
             IF(DEAL_II_WITH_${_feature})
               IF(COMMAND FEATURE_${_feature}_ERROR_MESSAGE)
-                RUN_COMMAND("FEATURE_${_feature}_ERROR_MESSAGE()")
+                 EVALUATE_EXPRESSION("FEATURE_${_feature}_ERROR_MESSAGE()")
               ELSE()
                 FEATURE_ERROR_MESSAGE(${_feature})
               ENDIF()

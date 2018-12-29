@@ -7,7 +7,7 @@ This program is devoted to two aspects: the use of mixed finite elements -- in
 particular Raviart-Thomas elements -- and using block matrices to define
 solvers, preconditioners, and nested versions of those that use the
 substructure of the system matrix. The equation we are going to solve is again
-the Laplace equation, though with a matrix-valued coefficient:
+the Poisson equation, though with a matrix-valued coefficient:
 @f{eqnarray*}
   -\nabla \cdot K({\mathbf x}) \nabla p &=& f \qquad {\textrm{in}\ } \Omega, \\
   p &=& g \qquad {\textrm{on}\ }\partial\Omega.
@@ -30,27 +30,48 @@ The equations covered here fall into the class of vector-valued problems. A
 toplevel overview of this topic can be found in the @ref vector_valued module.
 
 
-<h3>Formulation, weak form, and discrete problem</h3>
+<h3>The equations</h3>
 
-In the form above, the Laplace equation is generally considered a good model equation
-for fluid flow in porous media. In particular, if flow is so slow that all
-dynamic effects such as the acceleration terms in the Navier-Stokes equation
-become irrelevant, and if the flow pattern is stationary, then the
-Laplace
-equation models the pressure that drives the flow reasonable well. (Because the
+In the form above, the Poisson equation (i.e., the Laplace equation with a nonzero
+right hand side) is generally considered a good model equation
+for fluid flow in porous media. Of course, one typically models fluid flow through
+the <a href="https://en.wikipedia.org/wiki/Navier%E2%80%93Stokes_equations">Navier-Stokes
+equations</a> or, if fluid velocities are slow or the viscosity is large, the
+<a href="https://en.wikipedia.org/wiki/Stokes_flow">Stokes equations</a>.
+In the first of these two models, the forces that act are inertia and
+viscous friction, whereas in the second it is only viscous friction -- i.e.,
+forces that one fluid particle exerts on a nearby one. This is appropriate
+if you have free flow in a large domain, say a pipe, a river, or in the air.
+On the other hand, if the fluid is confined in pores, then friction forces
+exerted by the pore walls on the fluid become more and more important and
+internal viscous friction becomes less and less important. Modeling this
+then first leads to the 
+<a href="https://en.wikipedia.org/wiki/Darcy%27s_law#Brinkman_form_of_Darcy's_law">Brinkman
+model</a> if both effects are important, and in the limit of very small pores
+to the <a href="https://en.wikipedia.org/wiki/Darcy%27s_law">Darcy equations</a>.
+The latter is just a different name for the Poisson or Laplace equation, 
+connotating it with the area to which one wants to apply it: slow flow
+in a porous medium. In essence it says that the velocity is proportional
+to the pressure gradient that drives the fluid through the porous medium.
+
+The Darcy equation models this pressure that drives the flow. (Because the
 solution variable is a pressure, we here use the name $p$ instead of the
 name $u$ more commonly used for the solution of partial differential equations.)
-
 Typical applications of this view of the Laplace equation are then modeling
 groundwater flow, or the flow of hydrocarbons in oil reservoirs. In these
-applications, $K$ is then the permeability tensor, i.e. a measure for how much
+applications, $K$ is the permeability tensor, i.e., a measure for how much
 resistance the soil or rock matrix asserts on the fluid flow. In the
 applications just named, a desirable feature is that the numerical scheme is
-locally conservative, i.e. that whatever flows into a cell also flows out of
+locally conservative, i.e., that whatever flows into a cell also flows out of
 it (or the difference is equal to the integral over the source terms over each
 cell, if the sources are nonzero). However, as it turns out, the usual
-discretizations of the Laplace equation do not satisfy this property. On the
-other hand, one can achieve this by choosing a different formulation.
+discretizations of the Laplace equation (such as those used in step-3, step-4,
+or step-6) do not satisfy this property. But, one can achieve this by choosing
+a different formulation of the problem and a particular combination of finite
+element spaces.
+
+
+<h3>Formulation, weak form, and discrete problem</h3>
 
 To this end, one first introduces a second variable, called the flux,
 ${\mathbf u}=-K\nabla p$. By its definition, the flux is a vector in the
@@ -59,7 +80,7 @@ direction of the pressure gradient, multiplied by the permeability tensor. If
 the permeability tensor is proportional to the unit matrix, this equation is
 easy to understand and intuitive: the higher the permeability, the higher the
 flux; and the flux is proportional to the gradient of the pressure, going from
-areas of high pressure to areas of low pressure.
+areas of high pressure to areas of low pressure (thus the negative sign).
 
 With this second variable, one then finds an alternative version of the
 Laplace equation, called the mixed formulation:
@@ -262,10 +283,7 @@ see step-22 for a realization of that approach).
 The final result then looks like this, working in every space dimension:
 
 @code
-  typename DoFHandler<dim>::active_cell_iterator
-    cell = dof_handler.begin_active(),
-    endc = dof_handler.end();
-  for (; cell!=endc; ++cell)
+  for (const auto &cell : dof_handler.active_cell_iterators())
     {
       fe_values.reinit (cell);
       local_matrix = 0;
@@ -352,15 +370,15 @@ on the diagonal and none of the usual preconditioners (Jacobi, SSOR) will work
 as they require division by diagonal elements.
 
 For the matrix sizes we expect to run with this program, the by far simplest
-approach would be to just use a direct solver (in particular, the 
+approach would be to just use a direct solver (in particular, the
 SparseDirectUMFPACK class that is bundled with deal.II). step-29 goes this
 route and shows that solving <i>any</i> linear system can be done in just
-3 or 4 lines of code. 
+3 or 4 lines of code.
 
 But then, this is a tutorial: we teach how to do things. Consequently,
 in the following, we will introduce some techniques that can be used in cases
 like these. Namely, we will consider the linear system as not consisting of one
-large matrix and vectors, but we will want to decompose matrices into vectors
+large matrix and vectors, but we will want to decompose matrices
 into <i>blocks</i> that correspond to the individual operators that appear in
 the system. We note that the resulting solver is not optimal -- there are much
 better ways, for example those explained in the results section of step-22 or
@@ -434,26 +452,25 @@ function <code>vmult()</code> that is all that the SolverCG class
 requires from an object representing a matrix. We can make our life a
 bit easier by also introducing an object that represents $M^{-1}$ and
 that has its own <code>vmult()</code> function that, if called, solves
-the linear system with $M$; in fact, such a class already exists in
-deal.II: this is accomplished by using the class
-IterativeInverse. Using it, the class that implements the Schur
-only needs to offer the <code>vmult()</code>
+the linear system with $M$. Using this (which we will implement as the
+<code>InverseMatrix</code> class in the body of the program), the class
+that implements the Schur only needs to offer the <code>vmult()</code>
 function to perform a matrix-vector multiplication, using the algorithm
 above. Here are again the relevant parts of the code:
 
 @code
-class SchurComplement
+class SchurComplement : public Subscriptor
 {
   public:
-    SchurComplement (const BlockSparseMatrix<double> &A,
-                     const IterativeInverse<Vector<double> > &Minv);
+    SchurComplement (const BlockSparseMatrix<double>            &A,
+                     const InverseMatrix<SparseMatrix<double> > &inverse_mass);
 
     void vmult (Vector<double>       &dst,
                 const Vector<double> &src) const;
 
   private:
     const SmartPointer<const BlockSparseMatrix<double> > system_matrix;
-    const SmartPointer<const IterativeInverse<Vector<double> > > m_inverse;
+    const SmartPointer<const InverseMatrix<SparseMatrix<double> > > inverse_mass;
 
     mutable Vector<double> tmp1, tmp2;
 };
@@ -463,7 +480,7 @@ void SchurComplement::vmult (Vector<double>       &dst,
                              const Vector<double> &src) const
 {
   system_matrix->block(0,1).vmult (tmp1, src); // multiply with the top right block: B
-  m_inverse->vmult (tmp2, tmp1);               // multiply with M^-1
+  inverse_mass->vmult (tmp2, tmp1);            // multiply with M^-1
   system_matrix->block(1,0).vmult (dst, tmp2); // multiply with the bottom left block: B^T
 }
 @endcode
@@ -490,37 +507,31 @@ matrix and the mass matrix, respectively:
 template <int dim>
 void MixedLaplaceProblem<dim>::solve ()
 {
-  PreconditionIdentity identity;
-  IterativeInverse<Vector<double> > m_inverse;
-  m_inverse.initialize(system_matrix.block(0,0), identity);
-  m_inverse.solver.select("cg");
-  static ReductionControl inner_control(1000, 0., 1.e-13);
-  m_inverse.solver.set_control(inner_control);
-
+  InverseMatrix<SparseMatrix<double> > inverse_mass (system_matrix.block(0,0));
   Vector<double> tmp (solution.block(0).size());
 
   {
+    SchurComplement schur_complement (system_matrix, inverse_mass);
     Vector<double> schur_rhs (solution.block(1).size());
-
-    m_inverse.vmult (tmp, system_rhs.block(0));
+    inverse_mass.vmult (tmp, system_rhs.block(0));
     system_matrix.block(1,0).vmult (schur_rhs, tmp);
     schur_rhs -= system_rhs.block(1);
 
-    SolverControl solver_control (system_matrix.block(0,0).m(),
-                                  1e-6*schur_rhs.l2_norm());
-    SolverCG<>    cg (solver_control);
+    SolverControl solver_control (solution.block(1).size(),
+                                  1e-12*schur_rhs.l2_norm());
+    SolverCG<> cg (solver_control);
 
-    cg.solve (SchurComplement(system_matrix, m_inverse),
-              solution.block(1),
-              schur_rhs,
-              PreconditionIdentity());
+    PreconditionIdentity preconditioner;
+    cg.solve (schur_complement, solution.block(1), schur_rhs,
+              preconditioner);
   }
+
   {
     system_matrix.block(0,1).vmult (tmp, solution.block(1));
     tmp *= -1;
     tmp += system_rhs.block(0);
 
-    m_inverse.vmult (solution.block(0), tmp);
+    inverse_mass.vmult (solution.block(0), tmp);
   }
 }
 @endcode
@@ -568,7 +579,7 @@ this looks almost as expensive as solving with $S$ right away. However, note
 that in the inner iteration, we do not have to calculate $M^{-1}$, but only
 the inverse of its diagonal, which is cheap.
 
-The next step is to define a class that represents the approximate Schur
+The next step is to define a class that represents this approximate Schur
 complement. This should look very much like the Schur complement class itself,
 except that it doesn't need the object representing $M^{-1}$ any more
 since we can compute the inverse of the diagonal of $M$ on the fly:
@@ -576,26 +587,28 @@ since we can compute the inverse of the diagonal of $M$ on the fly:
 @code
 class ApproximateSchurComplement : public Subscriptor
 {
-  public:
-    ApproximateSchurComplement (const BlockSparseMatrix<double> &A);
+public:
+  ApproximateSchurComplement (const BlockSparseMatrix<double> &A);
 
-    void vmult (Vector<double>       &dst,
-                const Vector<double> &src) const;
+  void vmult (Vector<double>       &dst,
+              const Vector<double> &src) const;
 
-  private:
-    const SmartPointer<const BlockSparseMatrix<double> > system_matrix;
+private:
+  const SmartPointer<const BlockSparseMatrix<double> > system_matrix;
 
-    mutable Vector<double> tmp1, tmp2;
+  mutable Vector<double> tmp1, tmp2;
 };
 
 
-void ApproximateSchurComplement::vmult (Vector<double>       &dst,
-                                        const Vector<double> &src) const
-{
-  system_matrix->block(0,1).vmult (tmp1, src);
-  system_matrix->block(0,0).precondition_Jacobi (tmp2, tmp1);
-  system_matrix->block(1,0).vmult (dst, tmp2);
-}
+void
+ApproximateSchurComplement::vmult
+  (Vector<double>       &dst,
+   const Vector<double> &src) const
+  {
+    system_matrix->block(0,1).vmult (tmp1, src);
+    system_matrix->block(0,0).precondition_Jacobi (tmp2, tmp1);
+    system_matrix->block(1,0).vmult (dst, tmp2);
+  }
 @endcode
 
 Note how the <code>vmult</code> function differs in simply doing one Jacobi sweep
@@ -606,18 +619,14 @@ the diagonal of $M$; in other words, the operation $({\textrm{diag}\
 }M)^{-1}x$ on a vector $x$ is exactly what the function
 SparseMatrix::precondition_Jacobi above does.)
 
-With all this, we already have the preconditioner: it should be the inverse of
-the approximate Schur complement, i.e. we need code like this:
+With all this, we nearly already have the preconditioner: it should be the
+inverse of the approximate Schur complement. We implement this with
+the <code>InverseMatrix</code> class:
 
 @code
-    ApproximateSchurComplement
-      approximate_schur_complement (system_matrix);
-
-    IterativeInverse<Vector<double> >
-      preconditioner;
-    preconditioner.initialize(approximate_schur_complement, identity);
-    preconditioner.solver.select("cg");
-    preconditioner.solver.set_control(inner_control);
+  ApproximateSchurComplement approximate_schur (system_matrix);
+  InverseMatrix<ApproximateSchurComplement> approximate_inverse
+  (approximate_schur);
 @endcode
 
 That's all!
@@ -626,30 +635,21 @@ Taken together, the first block of our <code>solve()</code> function will then
 look like this:
 
 @code
-    Vector<double> schur_rhs (solution.block(1).size());
+      SchurComplement schur_complement (system_matrix, inverse_mass);
+      Vector<double> schur_rhs (solution.block(1).size());
+      inverse_mass.vmult (tmp, system_rhs.block(0));
+      system_matrix.block(1,0).vmult (schur_rhs, tmp);
+      schur_rhs -= system_rhs.block(1);
 
-    m_inverse.vmult (tmp, system_rhs.block(0));
-    system_matrix.block(1,0).vmult (schur_rhs, tmp);
-    schur_rhs -= system_rhs.block(1);
+      SolverControl solver_control (solution.block(1).size(),
+                                    1e-12*schur_rhs.l2_norm());
+      SolverCG<> cg (solver_control);
 
-    SchurComplement
-      schur_complement (system_matrix, m_inverse);
-
-    ApproximateSchurComplement
-      approximate_schur_complement (system_matrix);
-
-    IterativeInverse<Vector<double> >
-      preconditioner;
-    preconditioner.initialize(approximate_schur_complement, identity);
-    preconditioner.solver.select("cg");
-    preconditioner.solver.set_control(inner_control);
-
-    SolverControl solver_control (solution.block(1).size(),
-                                  1e-12*schur_rhs.l2_norm());
-    SolverCG<> cg (solver_control);
-
-    cg.solve (schur_complement, solution.block(1), schur_rhs,
-              preconditioner);
+      ApproximateSchurComplement approximate_schur (system_matrix);
+      InverseMatrix<ApproximateSchurComplement> approximate_inverse
+      (approximate_schur);
+      cg.solve (schur_complement, solution.block(1), schur_rhs,
+                approximate_inverse);
 @endcode
 
 Note how we pass the so-defined preconditioner to the solver working on the
@@ -678,9 +678,6 @@ in the library itself. It probably even is more powerful and general, but we
 chose to introduce this material here anyway to demonstrate how to work with
 block matrices and to develop solvers and preconditioners, rather than using
 black box components from the library.
-
-For those interested in looking up the corresponding library classes: the Schur
-complement class corresponds to the <code>SchurMatrix</code> class.
 
 
 <h3>Definition of the test case</h3>

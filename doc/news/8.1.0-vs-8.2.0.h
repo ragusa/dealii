@@ -8,8 +8,8 @@
 // it, and/or modify it under the terms of the GNU Lesser General
 // Public License as published by the Free Software Foundation; either
 // version 2.1 of the License, or (at your option) any later version.
-// The full text of the license can be found in the file LICENSE at
-// the top level of the deal.II distribution.
+// The full text of the license can be found in the file LICENSE.md at
+// the top level directory of deal.II.
 //
 // ---------------------------------------------------------------------
 
@@ -50,14 +50,14 @@ inconvenience this causes.
 
   <li> Removed: The constructor of the Utilities::MPI::MPI_InitFinalize
   class used to interpret a last argument equal to numbers::invalid_unsigned_int
-  as "<i>create as many threads as there are processor cores on the current
-  system</i>" for each MPI process. If there were multiple MPI processes on a
+  as @"<i>create as many threads as there are processor cores on the current
+  system</i>@" for each MPI process. If there were multiple MPI processes on a
   given node, this would lead to (sometimes massive) overallocation of resources
   because <i>every</i> MPI process would create as many threads as there are cores.
   This has now been changed: an argument equal to numbers::invalid_unsigned_int
-  is now interpreted as "<i>subdivide the available cores between all MPI
+  is now interpreted as @"<i>subdivide the available cores between all MPI
   processes running on the current system and let each process create as many
-  threads as cores were allocated to it</i>".
+  threads as cores were allocated to it</i>@".
   <br>
   (Wolfgang Bangerth, 2014/09/16)
   </li>

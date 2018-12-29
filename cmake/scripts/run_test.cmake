@@ -1,6 +1,6 @@
 ## ---------------------------------------------------------------------
 ##
-## Copyright (C) 2013 - 2015 by the deal.II authors
+## Copyright (C) 2013 - 2016 by the deal.II authors
 ##
 ## This file is part of the deal.II library.
 ##
@@ -8,8 +8,8 @@
 ## it, and/or modify it under the terms of the GNU Lesser General
 ## Public License as published by the Free Software Foundation; either
 ## version 2.1 of the License, or (at your option) any later version.
-## The full text of the license can be found in the file LICENSE at
-## the top level of the deal.II distribution.
+## The full text of the license can be found in the file LICENSE.md at
+## the top level directory of deal.II.
 ##
 ## ---------------------------------------------------------------------
 
@@ -53,21 +53,22 @@ IF("${EXPECT}" STREQUAL "")
 ENDIF()
 
 EXECUTE_PROCESS(COMMAND ${CMAKE_COMMAND}
-  --build ${BINARY_DIR} --target ${TRGT}
+  --build . --target ${TRGT}
+  WORKING_DIRECTORY ${BINARY_DIR}
   RESULT_VARIABLE _result_code # ignored ;-)
   OUTPUT_VARIABLE _output
   )
 
 #
-# Determine the last succesful stage of the test:
+# Determine the last successful stage of the test:
 # (Possible values are CONFIGURE, BUILD, RUN, DIFF, PASSED)
 #
 
-STRING(REGEX MATCH "${TEST}: CONFIGURE failed\\." _configure_regex ${_output})
-STRING(REGEX MATCH "${TEST}: BUILD failed\\." _build_regex ${_output})
-STRING(REGEX MATCH "${TEST}: RUN failed\\." _run_regex ${_output})
-STRING(REGEX MATCH "${TEST}: DIFF failed\\." _diff_regex ${_output})
-STRING(REGEX MATCH "${TEST}: PASSED\\." _passed_regex ${_output})
+STRING(REGEX MATCH "${TEST}: CONFIGURE failed\\." _configure_regex "${_output}")
+STRING(REGEX MATCH "${TEST}: BUILD failed\\." _build_regex "${_output}")
+STRING(REGEX MATCH "${TEST}: RUN failed\\." _run_regex "${_output}")
+STRING(REGEX MATCH "${TEST}: DIFF failed\\." _diff_regex "${_output}")
+STRING(REGEX MATCH "${TEST}: PASSED\\." _passed_regex "${_output}")
 
 IF(NOT "${_passed_regex}" STREQUAL "")
   SET(_stage PASSED)
@@ -90,7 +91,23 @@ MESSAGE("Test ${TEST}: ${_stage}")
 MESSAGE("===============================   OUTPUT BEGIN  ===============================")
 
 IF("${_stage}" STREQUAL "PASSED")
-  MESSAGE("${TEST}: PASSED.")
+  STRING(REGEX REPLACE ".*\\/" "" _test ${TEST})
+  #
+  # MPI tests have a special runtime directory so rename:
+  # test.mpirun=X.BUILD -> test.BUILD/mpirun=X
+  #
+  STRING(REGEX REPLACE "\\.(mpirun=[0-9]+)(\\..*)" "\\2/\\1" _test ${_test})
+  #
+  # Also output the diff file if we guessed the location correctly. This is
+  # solely for cosmetic reasons: The diff file is either empty (if
+  # comparison against the main comparison file was successful) or contains
+  # a string explaining which comparison file variant succeeded.
+  #
+  SET(_diff "")
+  IF(EXISTS ${BINARY_DIR}/${_test}/diff)
+    FILE(READ ${BINARY_DIR}/${_test}/diff _diff)
+  ENDIF()
+  MESSAGE("${_diff}${TEST}: PASSED.")
 
 ELSE()
 
@@ -98,7 +115,7 @@ ELSE()
     # Some special output in case the BUILD stage failed in a regression test:
     MESSAGE("${TEST}: BUILD failed. Output:")
   ENDIF()
-  MESSAGE(${_output})
+  MESSAGE("${_output}")
   MESSAGE("")
   MESSAGE("${TEST}: ******    ${_stage} failed    *******")
   MESSAGE("")

@@ -78,19 +78,21 @@ multiplying from the left by a test function and integrating over the
 domain. It then looks like this: Find $y = \{\mathbf v, p,
 \mathbf u\} \in Y \subset H^1(\Omega_f)^d \times L_2(\Omega_f) \times
 H^1(\Omega_s)^d$ such that
-@f{multline*}
+@f{align*}
 	2 \eta (\varepsilon(\mathbf a), \varepsilon(\mathbf v))_{\Omega_f}
 	- (\nabla \cdot \mathbf a, p)_{\Omega_f}
-	- (q, \nabla \cdot \mathbf v)_{\Omega_f}
+	- (q, \nabla \cdot \mathbf v)_{\Omega_f} &
 	\\
-	+ (\varepsilon(\mathbf b), C \varepsilon(\mathbf u))_{\Omega_s}
+	+ (\varepsilon(\mathbf b), C \varepsilon(\mathbf u))_{\Omega_s} &
 	\\
 	- (\mathbf b,
            (2 \eta \varepsilon(\mathbf v) + p \mathbf 1) \mathbf n)_{\Gamma_i}
-	=
+	&=
 	0,
 @f}
-for all test functions $\mathbf a, q, \mathbf b$.
+for all test functions $\mathbf a, q, \mathbf b$; the first, second, and
+third lines correspond to the fluid, solid, and interface
+contributions, respectively.
 Note that $Y$ is only a subspace of the spaces listed above to accommodate for
 the various Dirichlet boundary conditions.
 
@@ -298,16 +300,16 @@ points:
 
 Let us first discuss implementing the bilinear form, which at the
 discrete level we recall to be
-@f{multline*}
+@f{align*}
 	2 \eta (\varepsilon(\mathbf a_h), \varepsilon(\mathbf v_h))_{\Omega_f}
 	- (\nabla \cdot \mathbf a_h, p_h)_{\Omega_f}
-	- (q_h, \nabla \cdot \mathbf v_h)_{\Omega_f}
+	- (q_h, \nabla \cdot \mathbf v_h)_{\Omega_f} &
 	\\
-	+ (\varepsilon(\mathbf b_h), C \varepsilon(\mathbf u_h))_{\Omega_s}
+	+ (\varepsilon(\mathbf b_h), C \varepsilon(\mathbf u_h))_{\Omega_s} &
 	\\
 	- (\mathbf b_h,
            (2 \eta \varepsilon(\mathbf v_h) + p \mathbf 1) \mathbf n)_{\Gamma_i}
-	=
+	&=
 	0,
 @f}
 Given that we have extended the fields by zero, we could in principle
@@ -502,12 +504,12 @@ solid cell is refined, yielding the following code:
 @endcode
 
 The call <code>constraints.add_line(t)</code> tells the
-ConstraintMatrix to start a new constraint for degree of freedom
+AffineConstraints to start a new constraint for degree of freedom
 <code>t</code> of the form $x_t=\sum_{l=0}^{N-1} c_{tl} x_l +
 b_t$. Typically, one would then proceed to set individual coefficients
-$c_{tl}$ to nonzero values (using ConstraintMatrix::add_entry) or set
+$c_{tl}$ to nonzero values (using AffineConstraints::add_entry) or set
 $b_t$ to something nonzero (using
-ConstraintMatrix::set_inhomogeneity); doing nothing as above, funny as
+AffineConstraints::set_inhomogeneity); doing nothing as above, funny as
 it looks, simply leaves the constraint to be $x_t=0$, which is exactly
 what we need in the current context. The call to
 FiniteElement::face_system_to_component_index makes sure that we only set
@@ -540,7 +542,7 @@ introduction.
 
 We will consider the following situation as a testcase:
 
-<img src="http://www.dealii.org/images/steps/developer/step-46.layout.png" alt="">
+<img src="https://www.dealii.org/images/steps/developer/step-46.layout.png" alt="">
 
 As discussed at the top of this document, we need to assume in a few places
 that a cell is either entirely in the fluid or solid part of the domain and,
@@ -618,7 +620,7 @@ code like the following:
     stokes_component_mask[d] = true;
   KellyErrorEstimator<dim>::estimate (dof_handler,
                                       face_q_collection,
-                                      typename FunctionMap<dim>::type(),
+                                      std::map<types::boundary_id, const Function<dim>*>(),
                                       solution,
                                       stokes_estimated_error_per_cell,
                                       stokes_component_mask);
@@ -628,7 +630,7 @@ code like the following:
     elasticity_component_mask[dim+1+d] = true;
   KellyErrorEstimator<dim>::estimate (dof_handler,
                                       face_q_collection,
-                                      typename FunctionMap<dim>::type(),
+                                      std::map<types::boundary_id, const Function<dim>*>(),
                                       solution,
                                       elasticity_estimated_error_per_cell,
                                       elasticity_component_mask);

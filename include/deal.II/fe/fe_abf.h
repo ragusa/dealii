@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------
 //
-// Copyright (C) 2003 - 2015 by the deal.II authors
+// Copyright (C) 2003 - 2017 by the deal.II authors
 //
 // This file is part of the deal.II library.
 //
@@ -8,28 +8,28 @@
 // it, and/or modify it under the terms of the GNU Lesser General
 // Public License as published by the Free Software Foundation; either
 // version 2.1 of the License, or (at your option) any later version.
-// The full text of the license can be found in the file LICENSE at
-// the top level of the deal.II distribution.
+// The full text of the license can be found in the file LICENSE.md at
+// the top level directory of deal.II.
 //
 // ---------------------------------------------------------------------
 
-#ifndef dealii__fe_abf_h
-#define dealii__fe_abf_h
+#ifndef dealii_fe_abf_h
+#define dealii_fe_abf_h
 
 #include <deal.II/base/config.h>
-#include <deal.II/base/table.h>
-#include <deal.II/base/polynomials_abf.h>
-#include <deal.II/base/polynomial.h>
-#include <deal.II/base/tensor_product_polynomials.h>
+
 #include <deal.II/base/geometry_info.h>
+#include <deal.II/base/polynomial.h>
+#include <deal.II/base/polynomials_abf.h>
+#include <deal.II/base/table.h>
+#include <deal.II/base/tensor_product_polynomials.h>
+
 #include <deal.II/fe/fe.h>
 #include <deal.II/fe/fe_poly_tensor.h>
 
 #include <vector>
 
 DEAL_II_NAMESPACE_OPEN
-
-template <int dim, int spacedim> class MappingQ;
 
 
 /*!@addtogroup fe */
@@ -106,14 +106,15 @@ public:
   /**
    * Constructor for the ABF element of degree @p p.
    */
-  FE_ABF (const unsigned int p);
+  FE_ABF(const unsigned int p);
 
   /**
    * Return a string that uniquely identifies a finite element. This class
    * returns <tt>FE_ABF<dim>(degree)</tt>, with @p dim and @p degree replaced
    * by appropriate values.
    */
-  virtual std::string get_name () const;
+  virtual std::string
+  get_name() const override;
 
   /**
    * This function returns @p true, if the shape function @p shape_index has
@@ -122,19 +123,21 @@ public:
    * Right now, this is only implemented for RT0 in 1D. Otherwise, returns
    * always @p true.
    */
-  virtual bool has_support_on_face (const unsigned int shape_index,
-                                    const unsigned int face_index) const;
+  virtual bool
+  has_support_on_face(const unsigned int shape_index,
+                      const unsigned int face_index) const override;
 
-  virtual void interpolate(std::vector<double>                &local_dofs,
-                           const std::vector<double> &values) const;
-  virtual void interpolate(std::vector<double>                &local_dofs,
-                           const std::vector<Vector<double> > &values,
-                           unsigned int offset = 0) const;
-  virtual void interpolate(
-    std::vector<double> &local_dofs,
-    const VectorSlice<const std::vector<std::vector<double> > > &values) const;
-  virtual std::size_t memory_consumption () const;
-  virtual FiniteElement<dim> *clone() const;
+  // documentation inherited from the base class
+  virtual void
+  convert_generalized_support_point_values_to_dof_values(
+    const std::vector<Vector<double>> &support_point_values,
+    std::vector<double> &              nodal_values) const override;
+
+  virtual std::size_t
+  memory_consumption() const override;
+
+  virtual std::unique_ptr<FiniteElement<dim, dim>>
+  clone() const override;
 
 private:
   /**
@@ -151,7 +154,7 @@ private:
    * FiniteElementData.
    */
   static std::vector<unsigned int>
-  get_dpo_vector (const unsigned int degree);
+  get_dpo_vector(const unsigned int degree);
 
   /**
    * Initialize the @p generalized_support_points field of the FiniteElement
@@ -162,7 +165,8 @@ private:
    * @ref GlossGeneralizedSupport "glossary entry on generalized support points"
    * for more information.
    */
-  void initialize_support_points (const unsigned int rt_degree);
+  void
+  initialize_support_points(const unsigned int rt_degree);
 
   /**
    * Initialize the interpolation from functions on refined mesh cells onto
@@ -170,29 +174,8 @@ private:
    * element, this restriction operator preserves the divergence of a function
    * weakly.
    */
-  void initialize_restriction ();
-
-  /**
-   * Given a set of flags indicating what quantities are requested from a @p
-   * FEValues object, return which of these can be precomputed once and for
-   * all. Often, the values of shape function at quadrature points can be
-   * precomputed, for example, in which case the return value of this function
-   * would be the logical and of the input @p flags and @p update_values.
-   *
-   * For the present kind of finite element, this is exactly the case.
-   */
-  virtual UpdateFlags update_once (const UpdateFlags flags) const;
-
-  /**
-   * This is the opposite to the above function: given a set of flags
-   * indicating what we want to know, return which of these need to be
-   * computed each time we visit a new cell.
-   *
-   * If for the computation of one quantity something else is also required
-   * (for example, we often need the covariant transformation when gradients
-   * need to be computed), include this in the result as well.
-   */
-  virtual UpdateFlags update_each (const UpdateFlags flags) const;
+  void
+  initialize_restriction();
 
   /**
    * Fields of cell-independent data.
@@ -214,7 +197,7 @@ private:
      * space cell is then simply done by multiplication with the Jacobian of
      * the mapping.
      */
-    std::vector<std::vector<Tensor<1,dim> > > shape_values;
+    std::vector<std::vector<Tensor<1, dim>>> shape_values;
 
     /**
      * Array with shape function gradients in quadrature points. There is one
@@ -225,7 +208,7 @@ private:
      * then only have to apply the transformation (which is a matrix-vector
      * multiplication) when visiting an actual cell.
      */
-    std::vector<std::vector<Tensor<2,dim> > > shape_gradients;
+    std::vector<std::vector<Tensor<2, dim>>> shape_gradients;
   };
 
   /**
@@ -264,7 +247,8 @@ private:
   /**
    * Allow access from other dimensions.
    */
-  template <int dim1> friend class FE_ABF;
+  template <int dim1>
+  friend class FE_ABF;
 };
 
 

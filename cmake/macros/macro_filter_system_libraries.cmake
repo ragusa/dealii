@@ -1,6 +1,6 @@
 ## ---------------------------------------------------------------------
 ##
-## Copyright (C) 2014 by the deal.II authors
+## Copyright (C) 2014 - 2015 by the deal.II authors
 ##
 ## This file is part of the deal.II library.
 ##
@@ -8,8 +8,8 @@
 ## it, and/or modify it under the terms of the GNU Lesser General
 ## Public License as published by the Free Software Foundation; either
 ## version 2.1 of the License, or (at your option) any later version.
-## The full text of the license can be found in the file LICENSE at
-## the top level of the deal.II distribution.
+## The full text of the license can be found in the file LICENSE.md at
+## the top level directory of deal.II.
 ##
 ## ---------------------------------------------------------------------
 
@@ -32,7 +32,7 @@ MACRO(FILTER_SYSTEM_LIBRARIES _feature)
       SET(_tmp_${_variable} ${${_variable}})
       SET(${_variable} "")
       FOREACH(_lib ${_tmp_${_variable}})
-        IF(_lib MATCHES "lib(c|quadmath|gfortran|m|rt|nsl|dl|pthread)\\.(a|so)$")
+        IF(_lib MATCHES "lib(bfd|c|dl|gfortran|iberty|m|nsl|opcodes|pthread|quadmath|rt)\\.(a|so)$")
           string(REGEX REPLACE ".*lib([a-z]+).so$" "\\1" _lib ${_lib})
         ENDIF()
         LIST(APPEND ${_variable} ${_lib})
